@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from minute_alpha.data import aggregate_complete_bars
 from minute_alpha.position import target_positions
 from minute_alpha.xs_week import (
     ANCHOR_1M_OPEN,
@@ -16,6 +17,8 @@ from minute_alpha.xs_week import (
     base_window,
     cross_section_weights,
     decision_times,
+    higher_tf_specs,
+    horizon_bars,
     latest_closed_open,
     packs_from_frames,
     periods_per_year_bar,
@@ -255,6 +258,114 @@ def test_retrain_does_not_read_the_future_and_gaps_hold():
         assert list(frame.columns) == expected, name
     b_rows = tables["gaps"]
     assert ((b_rows["symbol"] == "BBB") & (b_rows["reason"] == "missing_print")).any()
+
+
+def test_higher_timeframes_use_the_bar_floor_and_two_horizons():
+    assert three_day_ok()
+    assert base_window("30m") == 288
+    assert base_window("1h") == 288
+    assert base_window("2h") == 288
+    assert base_window("5m") == 864 and base_window("15m") == 288
+    assert periods_per_year_bar(1800) == 17532
+    assert periods_per_year_bar(3600) == 8766
+    assert periods_per_year_bar(7200) == 4383
+    assert horizon_bars(7, 1800) == 336
+    assert horizon_bars(7, 3600) == 168
+    assert horizon_bars(7, 7200) == 84
+    assert horizon_bars(30, 1800) == 1440
+    assert horizon_bars(30, 3600) == 720
+    assert horizon_bars(30, 7200) == 360
+    assert datetime.fromtimestamp(latest_closed_open(1800), timezone.utc) == datetime(2026, 11, 9, 3, 30, tzinfo=timezone.utc)
+    assert datetime.fromtimestamp(latest_closed_open(3600), timezone.utc) == datetime(2026, 11, 9, 3, 0, tzinfo=timezone.utc)
+    assert datetime.fromtimestamp(latest_closed_open(7200), timezone.utc) == datetime(2026, 11, 9, 2, 0, tzinfo=timezone.utc)
+    specs = higher_tf_specs()
+    assert len(specs) == 24
+    names = [spec["dirname"] for spec in specs]
+    assert "portal_out_7d_30m_xs_ts" in names
+    assert "portal_out_7d_1h_xs_ts_min" in names
+    assert "portal_out_7d_2h_xs_rank" in names
+    assert "portal_out_7d_2h_xs_rank_long" in names
+    assert "portal_out_30d_30m_xs_ts" in names
+    assert "portal_out_30d_2h_xs_rank_long" in names
+    assert "portal_out_7d_5m_xs_ts" not in names
+    assert all(spec["window"] == 288 for spec in specs if spec["variant"] != "rank_long")
+    assert all(spec["window"] == 864 for spec in specs if spec["variant"] == "rank_long")
+
+
+def three_day_ok() -> bool:
+    from minute_alpha.xs_week import three_day_bars
+    return three_day_bars("30m") == 144 and three_day_bars("1h") == 72 and three_day_bars("2h") == 36
+
+
+def test_two_hour_bars_require_both_hours():
+    hours = pd.DataFrame({
+        "time": [0, 3600, 7200],
+        "open": [1.0, 2.0, 10.0],
+        "high": [3.0, 4.0, 12.0],
+        "low": [0.5, 1.5, 9.0],
+        "close": [2.0, 3.0, 11.0],
+        "volume": [1.0, 1.0, 5.0],
+    })
+    out = aggregate_complete_bars(hours, 7200, 3600)
+    assert list(out["time"]) == [0]
+    assert out["open"].iloc[0] == 1.0
+    assert out["close"].iloc[0] == 3.0
+    assert out["high"].iloc[0] == 4.0
+    assert out["low"].iloc[0] == 0.5
+    assert out["volume"].iloc[0] == 2.0
+    # A later complete pair is kept, and it does not borrow the missing hour.
+    hours = pd.DataFrame({
+        "time": [0, 3600, 7200, 10800],
+        "open": [1.0, 2.0, 10.0, 11.0],
+        "high": [3.0, 4.0, 12.0, 13.0],
+        "low": [0.5, 1.5, 9.0, 8.0],
+        "close": [2.0, 3.0, 11.0, 9.5],
+        "volume": [1.0, 1.0, 5.0, 4.0],
+    })
+    out = aggregate_complete_bars(hours, 7200, 3600)
+    assert list(out["time"]) == [0, 7200]
+    assert out["close"].iloc[1] == 9.5
+    assert out["volume"].iloc[1] == 9.0
+
+
+def test_future_mutation_and_truncation_do_not_change_the_position():
+    window, bar = 80, 300
+    start = 1_700_000_000 - (1_700_000_000 % bar)
+    times = start + np.arange(window + 5, dtype=np.int64) * bar
+    frames = _frames(times, seed=11)
+    decision = int(times[window - 1])
+    decisions = np.array([decision], dtype=np.int64)
+    packs = packs_from_frames(frames, latest_open=int(times[-1]), bar_sec=bar)
+    common = dict(
+        decisions=decisions, timeframe="5m", window=window, bar_sec=bar,
+        n_formulas=8, progress_every=0, min_ts_obs=20, min_rank_names=3,
+    )
+    full = run_variant_from_packs(packs, variant="ts", objective="mean", position_mode="tanh", label="A", **common)
+    rank = run_variant_from_packs(packs, variant="rank", objective="rank", position_mode="rank", label="B", **common)
+    assert full["updated"].any() and rank["updated"].any()
+
+    mutated = {symbol: frame.copy() for symbol, frame in frames.items()}
+    for frame in mutated.values():
+        future = frame["time"].to_numpy() > decision
+        for col in ("open", "high", "low", "close"):
+            frame.loc[future, col] = frame.loc[future, col].to_numpy() * 1.8
+        frame.loc[future, "volume"] = frame.loc[future, "volume"].to_numpy() + 25.0
+    mut_packs = packs_from_frames(mutated, latest_open=int(times[-1]), bar_sec=bar)
+    mut = run_variant_from_packs(mut_packs, variant="ts", objective="mean", position_mode="tanh", label="A", **common)
+    mut_rank = run_variant_from_packs(mut_packs, variant="rank", objective="rank", position_mode="rank", label="B", **common)
+    np.testing.assert_allclose(mut["position"], full["position"])
+    np.testing.assert_allclose(mut["factor"], full["factor"], equal_nan=True)
+    assert mut["names"] == full["names"]
+    np.testing.assert_allclose(mut_rank["position"], rank["position"])
+    np.testing.assert_allclose(mut_rank["factor"], rank["factor"], equal_nan=True)
+    assert mut_rank["names"] == rank["names"]
+
+    trimmed = {symbol: frame.loc[frame["time"] <= decision].copy() for symbol, frame in frames.items()}
+    trim_packs = packs_from_frames(trimmed, latest_open=decision, bar_sec=bar)
+    trimmed_run = run_variant_from_packs(trim_packs, variant="ts", objective="mean", position_mode="tanh", label="A", **common)
+    np.testing.assert_allclose(trimmed_run["position"], full["position"])
+    assert trimmed_run["names"] == full["names"]
+    assert np.isnan(trimmed_run["returns"]).all()
 
 
 def test_commit_dir_refuses_existing_output(tmp_path: Path):

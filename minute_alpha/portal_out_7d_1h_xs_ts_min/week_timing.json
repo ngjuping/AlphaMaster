@@ -1,0 +1,102 @@
+{
+  "retrain_count": 168,
+  "retrain_seconds_median": 0.1667885445000017,
+  "retrain_seconds_p95": 0.20593361530000234,
+  "retrain_seconds_mean": 0.17200466929761973,
+  "retrain_cpu_seconds_median": 0.1667885445000017,
+  "retrain_cpu_seconds_p95": 0.20593361530000234,
+  "retrain_wall_seconds_median": 0.9882104524995157,
+  "retrain_wall_seconds_p95": 1.1392839226497926,
+  "wall_seconds": 165.64531456199984,
+  "cpu_seconds": 29.322797998,
+  "serial_estimate_seconds": 28.896784442000115,
+  "gap_rows": 29,
+  "insufficient_history_rows": 0,
+  "cross_section_undefined_rows": 0,
+  "train_ic_median": 0.05480940286361226,
+  "periods_per_year": 8766,
+  "bar_seconds": 3600,
+  "window": 288,
+  "objective": "min",
+  "position_mode": "tanh",
+  "timeframe": "1h",
+  "variant": "ts_min",
+  "label": "A_min 最差币 IC",
+  "n_formulas": 32,
+  "seed": 20261109,
+  "anchor_1m_open": 1794198240,
+  "first_decision": 1793588400,
+  "last_decision": 1794189600,
+  "latest_open": 1794193200,
+  "oos_ic_mean": 0.11307320075997543,
+  "oos_icir": 0.8597400853497441,
+  "oos_ic_note": "时序 Pearson IC：各币整周 IC 的平均；ICIR 是各币当日 IC 再跨币平均后的 mean/std(ddof=1)，不年化",
+  "ts_ic_mean": 0.11307320075997543,
+  "ts_icir_daily": 0.8597400853497441,
+  "rank_ic_mean": 0.050916319450131746,
+  "rank_icir_daily": 0.6336771963291579,
+  "rank_icir_bar": 0.12268408820414559,
+  "rank_ic_bars": 168,
+  "data": "bitfinex trade candles, not a 1-minute aggregation",
+  "sharpe": "mean/std(ddof=1)*sqrt(8766); 8766 = round(365.25*86400/3600)",
+  "horizon_days": 7,
+  "three_day_bars": 72,
+  "coverage": [
+    {
+      "symbol": "BTC",
+      "first": 1758175200,
+      "last": 1794193200,
+      "prints": 9995,
+      "missing_week_slots": 0,
+      "week_slots": 169
+    },
+    {
+      "symbol": "ETH",
+      "first": 1758175200,
+      "last": 1794193200,
+      "prints": 9995,
+      "missing_week_slots": 0,
+      "week_slots": 169
+    },
+    {
+      "symbol": "SOL",
+      "first": 1758160800,
+      "last": 1794193200,
+      "prints": 9995,
+      "missing_week_slots": 0,
+      "week_slots": 169
+    },
+    {
+      "symbol": "XRP",
+      "first": 1757973600,
+      "last": 1794193200,
+      "prints": 9995,
+      "missing_week_slots": 0,
+      "week_slots": 169
+    },
+    {
+      "symbol": "ADA",
+      "first": 1758160800,
+      "last": 1794193200,
+      "prints": 9995,
+      "missing_week_slots": 0,
+      "week_slots": 169
+    },
+    {
+      "symbol": "DOGE",
+      "first": 1757386800,
+      "last": 1794193200,
+      "prints": 9995,
+      "missing_week_slots": 0,
+      "week_slots": 169
+    },
+    {
+      "symbol": "LTC",
+      "first": 1756292400,
+      "last": 1794193200,
+      "prints": 9995,
+      "missing_week_slots": 18,
+      "week_slots": 169
+    }
+  ]
+}

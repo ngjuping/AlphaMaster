@@ -54,6 +54,8 @@ MIN_TS_OBS = 30
 MIN_RANK_NAMES = 3
 MIN_DAILY_OBS = 8
 MIN_WEEK_OBS = 20
+# 3 days is only 36 bars on a 2h clock. Training uses at least this many closes.
+MIN_TRAIN_BARS = 288
 
 
 def periods_per_year_bar(bar_sec: int) -> int:
@@ -75,15 +77,29 @@ def latest_closed_open(bar_sec: int, anchor: int = ANCHOR_1M_OPEN) -> int:
 
 
 def week_bars(bar_sec: int) -> int:
-    return 7 * 24 * 3600 // int(bar_sec)
+    return horizon_bars(7, bar_sec)
 
 
-def base_window(timeframe: str) -> int:
-    return {"5m": 864, "15m": 288}[timeframe]
+def horizon_bars(days: int, bar_sec: int) -> int:
+    """How many bars tile exactly ``days`` of 24h, given a fixed bar size."""
+    return int(days) * 24 * 3600 // int(bar_sec)
 
 
 def bar_seconds(timeframe: str) -> int:
-    return {"5m": 300, "15m": 900}[timeframe]
+    return {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "2h": 7200}[timeframe]
+
+
+def three_day_bars(timeframe: str) -> int:
+    return horizon_bars(3, bar_seconds(timeframe))
+
+
+def base_window(timeframe: str) -> int:
+    """Training length: max(3 days, 288 closes).
+
+    5m is already 864 and 15m is already 288, so those studies do not move.
+    30m / 1h / 2h would otherwise train on 144 / 72 / 36 bars.
+    """
+    return max(three_day_bars(timeframe), MIN_TRAIN_BARS)
 
 
 def decision_times(latest_open: int, bar_sec: int, n_decisions: int) -> np.ndarray:
@@ -102,30 +118,48 @@ def decision_times(latest_open: int, bar_sec: int, n_decisions: int) -> np.ndarr
     return out
 
 
+_VARIANT_ORDER = (
+    ("ts", "mean", "tanh", 1, "xs_ts", "A 时序 IC 均值"),
+    ("ts_min", "min", "tanh", 1, "xs_ts_min", "A_min 最差币 IC"),
+    ("rank", "rank", "rank", 1, "xs_rank", "B 截面 Rank IC"),
+    ("rank_long", "rank", "rank", 3, "xs_rank_long", "B_long 截面 Rank IC，窗口 ×3"),
+)
+
+
+def _spec(timeframe: str, days: int, key: str, objective: str, mode: str, mult: int, suffix: str, label: str) -> dict:
+    bar = bar_seconds(timeframe)
+    return {
+        "key": f"{timeframe}_{key}_{days}d" if days != 7 or timeframe not in ("5m", "15m") else f"{timeframe}_{key}",
+        "timeframe": timeframe,
+        "variant": key,
+        "objective": objective,
+        "position_mode": mode,
+        "window_mult": mult,
+        "window": base_window(timeframe) * mult,
+        "bar_seconds": bar,
+        "label": label,
+        "horizon_days": int(days),
+        "n_decisions": horizon_bars(days, bar),
+        "dirname": f"portal_out_{int(days)}d_{timeframe}_{suffix}",
+    }
+
+
 def variant_specs() -> list[dict]:
-    """The eight jobs. Directory names are the ones the study asked for."""
-    order = (
-        ("ts", "mean", "tanh", 1, "xs_ts", "A 时序 IC 均值"),
-        ("ts_min", "min", "tanh", 1, "xs_ts_min", "A_min 最差币 IC"),
-        ("rank", "rank", "rank", 1, "xs_rank", "B 截面 Rank IC"),
-        ("rank_long", "rank", "rank", 3, "xs_rank_long", "B_long 截面 Rank IC，窗口 ×3"),
-    )
+    """The original eight 5m/15m jobs. Directory names stay portal_out_7d_*."""
     specs = []
     for timeframe in ("5m", "15m"):
-        bar = bar_seconds(timeframe)
-        for key, objective, mode, mult, suffix, label in order:
-            specs.append({
-                "key": f"{timeframe}_{key}",
-                "timeframe": timeframe,
-                "variant": key,
-                "objective": objective,
-                "position_mode": mode,
-                "window_mult": mult,
-                "window": base_window(timeframe) * mult,
-                "bar_seconds": bar,
-                "label": label,
-                "dirname": f"portal_out_7d_{timeframe}_{suffix}",
-            })
+        for key, objective, mode, mult, suffix, label in _VARIANT_ORDER:
+            specs.append(_spec(timeframe, 7, key, objective, mode, mult, suffix, label))
+    return specs
+
+
+def higher_tf_specs() -> list[dict]:
+    """30m, 1h, and 2h, each with the 7-day week and a 30-day robustness window."""
+    specs = []
+    for timeframe in ("30m", "1h", "2h"):
+        for days in (7, 30):
+            for key, objective, mode, mult, suffix, label in _VARIANT_ORDER:
+                specs.append(_spec(timeframe, days, key, objective, mode, mult, suffix, label))
     return specs
 
 
@@ -1249,7 +1283,9 @@ def _report_variant(tables: dict) -> str:
         "",
         *_method_lines(),
         "",
-        f"本目录是 {timing['timeframe']}、窗口 {timing['window']} 根、目标 `{timing['objective']}`、仓位 `{timing['position_mode']}`。",
+        f"本目录是 {timing['timeframe']}、测试段 {timing.get('horizon_days', 7)} 天、"
+        f"训练窗 {timing['window']} 根（3 天本来是 {timing.get('three_day_bars', three_day_bars(timing['timeframe']))} 根，"
+        f"下限 {MIN_TRAIN_BARS}，长窗口再乘倍数）、目标 `{timing['objective']}`、仓位 `{timing['position_mode']}`。",
         f"决策从 {_utc(timing['first_decision'])} 到 {_utc(timing['last_decision'])}，"
         f"最后一根结算开盘是 {_utc(timing['latest_open'])}。",
         f"Sharpe 年化系数 sqrt({timing['periods_per_year']})。{timing['sharpe']}。",
@@ -1359,9 +1395,12 @@ def _run_spec(payload: dict) -> dict:
     """One variant. Spawned so a multi-threaded parent cannot deadlock on fork."""
     spec = payload["spec"]
     key = spec["key"]
-    packs = _load_packs(spec["timeframe"], refresh=False, quiet=True)
+    packs = _load_packs(
+        spec["timeframe"], refresh=False, quiet=True, test_bars=int(spec.get("n_decisions") or 0) or None,
+    )
     bar = spec["bar_seconds"]
-    decisions = decision_times(latest_closed_open(bar), bar, week_bars(bar))
+    n_decisions = int(spec.get("n_decisions") or week_bars(bar))
+    decisions = decision_times(latest_closed_open(bar), bar, n_decisions)
     if payload.get("limit"):
         decisions = decisions[: int(payload["limit"])]
     print(f"start {key} window {spec['window']} decisions {len(decisions)}", flush=True)
@@ -1380,6 +1419,8 @@ def _run_spec(payload: dict) -> dict:
     )
     result["coverage"] = _coverage(packs, decisions, spec["bar_seconds"])
     tables = build_tables(result)
+    tables["timing"]["horizon_days"] = int(spec.get("horizon_days") or 7)
+    tables["timing"]["three_day_bars"] = three_day_bars(spec["timeframe"])
     tables["timing"]["coverage"] = result["coverage"]
     out_root = Path(payload["out_root"])
     dest = out_root / spec["dirname"]
@@ -1400,6 +1441,7 @@ def _run_spec(payload: dict) -> dict:
         "timeframe": spec["timeframe"],
         "variant": spec["variant"],
         "label": spec["label"],
+        "horizon_days": int(spec.get("horizon_days") or 7),
         "timing": tables["timing"],
         "metrics": tables["metrics"].to_dict(orient="records"),
         "daily": tables["daily"].to_dict(orient="records"),
@@ -1585,14 +1627,20 @@ def _summary_report(slims: list[dict], pool_wall: float, coverage: dict) -> str:
     return "\n".join(lines)
 
 
-def _load_packs(timeframe: str, refresh: bool = False, quiet: bool = False) -> dict[str, dict]:
+def _load_packs(
+    timeframe: str,
+    refresh: bool = False,
+    quiet: bool = False,
+    test_bars: int | None = None,
+) -> dict[str, dict]:
     from minute_alpha.data import load_timeframe_frames
 
     bar = bar_seconds(timeframe)
     latest = latest_closed_open(bar)
     frames = load_timeframe_frames(timeframe, bars=10000, cache=True, refresh=refresh)
     packs = packs_from_frames(frames, latest, bar)
-    need_from = int(decision_times(latest, bar, week_bars(bar))[0]) - (base_window(timeframe) * 3 - 1) * bar
+    n_test = int(test_bars) if test_bars is not None else week_bars(bar)
+    need_from = int(decision_times(latest, bar, n_test)[0]) - (base_window(timeframe) * 3 - 1) * bar
     for symbol, pack in packs.items():
         first = int(pack["time"][0]) if pack["time"].size else None
         last = int(pack["time"][-1]) if pack["time"].size else None
@@ -1610,8 +1658,224 @@ def _load_packs(timeframe: str, refresh: bool = False, quiet: bool = False) -> d
     return packs
 
 
-def main(limit_decisions: int | None = None, only: list[str] | None = None, refresh: bool = False) -> dict:
-    specs = variant_specs()
+def _saved_week_row(dirname: str) -> dict | None:
+    folder = ROOT / dirname
+    metrics_path = folder / "week_metrics.csv"
+    timing_path = folder / "week_timing.json"
+    if not metrics_path.exists() or not timing_path.exists():
+        return None
+    metrics = pd.read_csv(metrics_path)
+    all_row = metrics.loc[metrics["symbol"] == "ALL"]
+    if all_row.empty:
+        return None
+    row = all_row.iloc[0].to_dict()
+    timing = json.loads(timing_path.read_text(encoding="utf-8"))
+    return {"metrics": row, "timing": timing}
+
+
+def _fmt_row(tf: str, label: str, metrics: dict, timing: dict, window: int, n_test: int) -> str:
+    return (
+        f"| {tf} | {label} | {window} | {n_test} | {_pct(metrics.get('return_1bp'))} | "
+        f"{_num(metrics.get('sharpe_1bp'))} | {_pct(metrics.get('mdd_1bp'))} | {_num(metrics.get('turnover_1bp'), 4)} | "
+        f"{_pct(metrics.get('return_0cost'))} | {_num(metrics.get('sharpe_0cost'))} | "
+        f"{_pct(metrics.get('buyhold_return_0cost'))} | {_num(timing.get('oos_ic_mean'), 4)} | "
+        f"{_num(timing.get('oos_icir'), 3)} | {_secs(timing.get('retrain_cpu_seconds_median'))} | "
+        f"{_secs(timing.get('retrain_cpu_seconds_p95'))} | {_secs(timing.get('wall_seconds'))} | "
+        f"{timing.get('periods_per_year')} |"
+    )
+
+
+def _compare_header() -> list[str]:
+    return [
+        "| 周期 | 变体 | 训练根数 | 测试根数 | 收益 1bp | Sharpe 1bp | MDD 1bp | 换手 | 收益 0 成本 | Sharpe 0 成本 | 买入持有 | OOS IC | 日频 ICIR | CPU 中位 | CPU P95 | 进程墙钟 | 年化 N |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+
+
+def _higher_report(slims: list[dict], pool_wall: float) -> str:
+    by_key = {item["key"]: item for item in slims}
+    lines = [
+        "# 30m / 1h / 2h 截面训练",
+        "",
+        "30 分钟和 1 小时直接取 Bitfinex 公开 `trade:30m`、`trade:1h` 闭合 candle。",
+        "2 小时不是交易所公开周期：`trade:2h`、`trade:120m` 都返回空列表，公开周期从 1h 跳到 3h。",
+        "2h bar 由两根连续已闭合 1h candle 合成，而且两根都必须在。open 用第一小时的 open，"
+        "high/low 用两小时的极值，close 用第二小时的 close，volume 相加。缺任一小时，整根 2h 不存在，不填 0。",
+        "",
+        "测试锚点仍是 portal_out_7d 的 2026-11-09 04:24:00 UTC。",
+        "7 天测试段和 5m/15m 一样长，用来横比。30 天测试段是同一锚点往前正好 30×24 小时，每根 bar 同样重训，只作稳健性参考。",
+        "训练窗取 max(3 天的根数, 288)。B_long 再乘 3。决策 bar 自己的下一根收益不进训练。缺 bar 保持仓位，收益留空。",
+        "成本与 5m/15m 相同：0 手续费，换手每单位再扣 1bp（开仓和平仓各算一次）。",
+        "Sharpe = 均值 / 样本标准差(ddof=1) × sqrt(N)，N = round(365.25×86400 / bar 秒数)。",
+        "日频 ICIR 是 mean/std(ddof=1)，不另做年化。重训中位数和 P95 是 CPU 时间。墙钟含多进程争用。",
+        "",
+        f"本次 {len(slims)} 个任务同时跑，进程池墙钟 {_secs(pool_wall)}。",
+        "",
+        "## 训练窗实际根数",
+        "",
+        "| 周期 | 3 天根数 | 实际训练窗 | B_long | 7 天测试 | 30 天测试 | 年化 N | K 线 |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    sources = {
+        "5m": "交易所 5m",
+        "15m": "交易所 15m",
+        "30m": "交易所 30m",
+        "1h": "交易所 1h",
+        "2h": "两根完整 1h 合成",
+    }
+    for tf in ("5m", "15m", "30m", "1h", "2h"):
+        bar = bar_seconds(tf)
+        three = three_day_bars(tf)
+        window = base_window(tf)
+        lines.append(
+            f"| {tf} | {three} | {window} | {window * 3} | {horizon_bars(7, bar)} | "
+            f"{horizon_bars(30, bar)} | {periods_per_year_bar(bar)} | {sources[tf]} |"
+        )
+    lines += [
+        "",
+        "5m 的 3 天已经是 864 根，15m 的 3 天正好 288 根，所以这两档和原先的 portal_out_7d_5m/15m 是同一训练长度。",
+        "表里 5m/15m 的 30 天测试根数只是同一时钟会有多少根，这次没有重跑那两档的 30 天。",
+        "30m 的 3 天只有 144 根，抬到 288 根（6 天）。1h 的 3 天是 72 根，抬到 288 根（12 天）。2h 的 3 天是 36 根，抬到 288 根（24 天）。",
+        "",
+        "## 7 天同口径总对比",
+        "",
+        "含已经跑完的 5m/15m。买入持有是同一测试段、同一缺 bar 处理下的等权多头。",
+        "",
+        *_compare_header(),
+    ]
+    for tf in ("5m", "15m"):
+        for key, _objective, _mode, _mult, suffix, label in _VARIANT_ORDER:
+            saved = _saved_week_row(f"portal_out_7d_{tf}_{suffix}")
+            if saved is None:
+                lines.append(f"| {tf} | {label} | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |")
+                continue
+            lines.append(_fmt_row(
+                tf, label, saved["metrics"], saved["timing"],
+                int(saved["timing"].get("window") or base_window(tf)),
+                horizon_bars(7, bar_seconds(tf)),
+            ))
+    for tf in ("30m", "1h", "2h"):
+        for key, _objective, _mode, mult, _suffix, label in _VARIANT_ORDER:
+            item = by_key.get(f"{tf}_{key}_7d")
+            if item is None:
+                continue
+            all_row = next(row for row in item["metrics"] if row["symbol"] == "ALL")
+            lines.append(_fmt_row(tf, label, all_row, item["timing"], base_window(tf) * mult, horizon_bars(7, bar_seconds(tf))))
+    lines += [
+        "",
+        "## 30 天稳健性",
+        "",
+        "同一锚点往前 30×24 小时。训练规则不变，仍然每根 bar 收盘重训，而且只用当时已经闭合的 bar。",
+        "",
+        *_compare_header(),
+    ]
+    for tf in ("30m", "1h", "2h"):
+        for key, _objective, _mode, mult, _suffix, label in _VARIANT_ORDER:
+            item = by_key.get(f"{tf}_{key}_30d")
+            if item is None:
+                continue
+            all_row = next(row for row in item["metrics"] if row["symbol"] == "ALL")
+            lines.append(_fmt_row(tf, label, all_row, item["timing"], base_window(tf) * mult, horizon_bars(30, bar_seconds(tf))))
+    lines += [
+        "",
+        "各币、分天和选中公式在对应目录的 `REPORT.md`。CSV 列与 `portal_out_7d_5m_xs_*` 一致，含 `position`、`factor`、`target`。",
+        "",
+        "## 各任务",
+        "",
+    ]
+    for tf in ("30m", "1h", "2h"):
+        for days in (7, 30):
+            for key, _objective, _mode, mult, _suffix, label in _VARIANT_ORDER:
+                item = by_key.get(f"{tf}_{key}_{days}d")
+                if item is None:
+                    continue
+                all_row = next(row for row in item["metrics"] if row["symbol"] == "ALL")
+                timing = item["timing"]
+                lines += [
+                    f"### {tf} {days} 天 {label}",
+                    "",
+                    f"目录 `minute_alpha/{item['dirname']}/`。训练 {base_window(tf) * mult} 根，测试 {timing.get('retrain_count')} 次重训。",
+                    f"1bp 收益 {_pct(all_row['return_1bp'])}，Sharpe {_num(all_row['sharpe_1bp'])}，"
+                    f"MDD {_pct(all_row['mdd_1bp'])}，换手 {_num(all_row['turnover_1bp'], 4)}。",
+                    f"0 成本收益 {_pct(all_row['return_0cost'])}，Sharpe {_num(all_row['sharpe_0cost'])}，"
+                    f"MDD {_pct(all_row['mdd_0cost'])}。买入持有 {_pct(all_row['buyhold_return_0cost'])}。",
+                    f"样本外 IC {_num(item['ic']['headline_ic'], 4)}，日频 ICIR {_num(item['ic']['headline_icir'], 3)}。"
+                    f"年化 N = {timing.get('periods_per_year')}。",
+                    f"CPU 中位数 {_secs(timing.get('retrain_cpu_seconds_median'))}，"
+                    f"P95 {_secs(timing.get('retrain_cpu_seconds_p95'))}，进程墙钟 {_secs(timing.get('wall_seconds'))}。",
+                    f"缺口行 {timing.get('gap_rows')}。",
+                    "",
+                ]
+    return "\n".join(lines)
+
+
+def _plot_higher(slims: list[dict], folder: Path) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    by_key = {item["key"]: item for item in slims}
+    order = ["ts", "ts_min", "rank", "rank_long"]
+    frames = ["30m", "1h", "2h"]
+    titles = {
+        "ts": "A mean TS IC",
+        "ts_min": "A_min worst IC",
+        "rank": "B rank IC",
+        "rank_long": "B_long x3",
+    }
+    for days, pos_name, eq_name in (
+        (7, "position_cumsum_7d.png", "equity_7d.png"),
+        (30, "position_cumsum_30d.png", "equity_30d.png"),
+    ):
+        fig, axes = plt.subplots(4, 3, figsize=(14, 12))
+        for r, variant in enumerate(order):
+            for c, timeframe in enumerate(frames):
+                ax = axes[r][c]
+                item = by_key.get(f"{timeframe}_{variant}_{days}d")
+                if item is None:
+                    ax.set_visible(False)
+                    continue
+                y = np.asarray([np.nan if v is None else v for v in item["all_pos_cumsum"]], dtype=np.float64)
+                x = np.asarray(item["decisions"], dtype=np.int64)
+                ax.plot(x, y, lw=1.1)
+                ax.axhline(0.0, color="black", lw=0.6)
+                ax.grid(True, alpha=0.3)
+                ax.set_title(f"{timeframe} {titles[variant]}", fontsize=9)
+        fig.suptitle(f"{days}d position × next-bar return (no costs)")
+        fig.tight_layout()
+        fig.savefig(folder / pos_name, dpi=120)
+        plt.close(fig)
+
+        fig, axes = plt.subplots(4, 3, figsize=(14, 12))
+        for r, variant in enumerate(order):
+            for c, timeframe in enumerate(frames):
+                ax = axes[r][c]
+                item = by_key.get(f"{timeframe}_{variant}_{days}d")
+                if item is None:
+                    ax.set_visible(False)
+                    continue
+                pnl = np.asarray([np.nan if v is None else v for v in item["port_1"]], dtype=np.float64)
+                ok = np.isfinite(pnl)
+                if ok.any():
+                    equity = np.cumprod(1.0 + pnl[ok])
+                    ax.plot(np.asarray(item["decisions"])[ok], equity, lw=1.1, color="C1")
+                ax.axhline(1.0, color="black", lw=0.6)
+                ax.grid(True, alpha=0.3)
+                ax.set_title(f"{timeframe} {titles[variant]}", fontsize=9)
+        fig.suptitle(f"{days}d equity after 0 fee + 1bp")
+        fig.tight_layout()
+        fig.savefig(folder / eq_name, dpi=120)
+        plt.close(fig)
+
+
+def main(
+    limit_decisions: int | None = None,
+    only: list[str] | None = None,
+    refresh: bool = False,
+    spec_set: str = "week",
+) -> dict:
+    specs = higher_tf_specs() if spec_set == "higher" else variant_specs()
     if only:
         wanted = set(only)
         specs = [spec for spec in specs if spec["key"] in wanted or spec["variant"] in wanted or spec["timeframe"] in wanted]
@@ -1626,20 +1890,25 @@ def main(limit_decisions: int | None = None, only: list[str] | None = None, refr
             if dest.exists() and any(dest.iterdir()):
                 raise FileExistsError(f"refuse to overwrite {dest}")
     timeframes = sorted({spec["timeframe"] for spec in specs})
-    packs = {tf: _load_packs(tf, refresh=refresh) for tf in timeframes}
-    decisions = {}
+    packs = {}
+    for tf in timeframes:
+        longest = max(int(spec.get("n_decisions") or week_bars(bar_seconds(tf))) for spec in specs if spec["timeframe"] == tf)
+        packs[tf] = _load_packs(tf, refresh=refresh, test_bars=longest)
     coverage = {}
     for tf in timeframes:
         bar = bar_seconds(tf)
         latest = latest_closed_open(bar)
-        clock = decision_times(latest, bar, week_bars(bar))
-        decisions[tf] = clock
-        coverage[tf] = _coverage(packs[tf], clock if not limit_decisions else clock[:limit_decisions], bar)
-        print(
-            f"{tf} latest {_utc(latest)} decisions {len(clock)} "
-            f"{_utc(int(clock[0]))} → {_utc(int(clock[-1]))}",
-            flush=True,
-        )
+        horizons = sorted({int(spec.get("horizon_days") or 7) for spec in specs if spec["timeframe"] == tf})
+        for days in horizons:
+            clock = decision_times(latest, bar, horizon_bars(days, bar))
+            shown = clock[:limit_decisions] if limit_decisions else clock
+            key = tf if horizons == [7] else f"{tf}_{days}d"
+            coverage[key] = _coverage(packs[tf], shown, bar)
+            print(
+                f"{tf} {days}d latest {_utc(latest)} decisions {len(clock)} "
+                f"{_utc(int(clock[0]))} → {_utc(int(clock[-1]))} train {base_window(tf)}",
+                flush=True,
+            )
     payloads = [{
         "spec": spec,
         "limit": limit_decisions,
@@ -1659,21 +1928,31 @@ def main(limit_decisions: int | None = None, only: list[str] | None = None, refr
     if limit_decisions:
         print(f"limit run done in {pool_wall:.1f}s under {out_root}", flush=True)
         return {"pool_wall": pool_wall, "slims": slims}
-    summary = out_root / "portal_out_7d_xs_summary"
-    if summary.exists():
+    if spec_set == "higher":
+        summary = out_root / "portal_out_higher_xs_summary"
+        text = _higher_report(slims, pool_wall)
+        figures = ("position_cumsum_7d.png", "equity_7d.png", "position_cumsum_30d.png", "equity_30d.png")
+        artifact = Path("/opt/cursor/artifacts/minute_alpha_higher_xs")
+    else:
+        summary = out_root / "portal_out_7d_xs_summary"
+        text = _summary_report(slims, pool_wall, coverage)
+        figures = ("position_cumsum_4x2.png", "equity_4x2.png")
+        artifact = Path("/opt/cursor/artifacts/minute_alpha_xs")
+    if summary.exists() and spec_set != "higher":
         shutil.rmtree(summary)
-    summary.mkdir(parents=True)
-    text = _summary_report(slims, pool_wall, coverage)
+    summary.mkdir(parents=True, exist_ok=True)
     (summary / "REPORT.md").write_text(text, encoding="utf-8")
     (summary / "summary.json").write_text(
         json.dumps(_json_safe({"pool_wall_seconds": pool_wall, "runs": slims}), indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
-    _plot_grid(slims, summary)
-    artifact = Path("/opt/cursor/artifacts/minute_alpha_xs")
+    if spec_set == "higher":
+        _plot_higher(slims, summary)
+    else:
+        _plot_grid(slims, summary)
     artifact.mkdir(parents=True, exist_ok=True)
     shutil.copy(summary / "REPORT.md", artifact / "REPORT.md")
-    for name in ("position_cumsum_4x2.png", "equity_4x2.png"):
+    for name in figures:
         src = summary / name
         if src.exists():
             shutil.copy(src, artifact / name)
@@ -1686,6 +1965,12 @@ if __name__ == "__main__":
     parser.add_argument("--limit", type=int, default=0, help="debug: only the first N decisions, write under /tmp")
     parser.add_argument("--only", default="", help="comma-separated variant keys, e.g. 15m_ts,5m_rank")
     parser.add_argument("--refresh", action="store_true", help="redownload Bitfinex candles")
+    parser.add_argument("--higher", action="store_true", help="run 30m/1h/2h for 7 days and 30 days")
     args = parser.parse_args()
     only = [part for part in args.only.split(",") if part]
-    main(limit_decisions=args.limit or None, only=only or None, refresh=args.refresh)
+    main(
+        limit_decisions=args.limit or None,
+        only=only or None,
+        refresh=args.refresh,
+        spec_set="higher" if args.higher else "week",
+    )

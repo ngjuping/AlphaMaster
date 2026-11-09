@@ -21,7 +21,9 @@ _CACHE = Path(__file__).resolve().parent / "cache"
 
 # Exchange candle size in seconds. These are Bitfinex trade candles, not
 # aggregates built from the 1-minute prints.
-TIMEFRAMES = {"1m": 60, "5m": 300, "15m": 900}
+# 2h is not a Bitfinex public candle size (the hist endpoint returns []).
+# ``load_timeframe_frames("2h")`` builds it from two complete 1h candles.
+TIMEFRAMES = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "2h": 7200}
 
 
 def _get(url: str, timeout: float = 30.0) -> list:
@@ -197,13 +199,83 @@ def fetch_candles(pair: str, timeframe: str, bars: int, pause: float = 0.35) -> 
     return frame
 
 
+def aggregate_complete_bars(frame: pd.DataFrame, bar_sec: int, source_sec: int) -> pd.DataFrame:
+    """Stack source candles into a longer bar only when every slot is present.
+
+    A missing source bar drops the whole bucket. Nothing is filled with the
+    previous close or with a zero return. OHLC uses the first open, the
+    extreme high and low, the last close, and the sum of volume.
+    """
+    if bar_sec % source_sec != 0:
+        raise ValueError(f"{bar_sec} is not a multiple of {source_sec}")
+    slots = bar_sec // source_sec
+    src = frame.sort_values("time").drop_duplicates("time")
+    times = src["time"].to_numpy(dtype=np.int64)
+    index = {int(t): i for i, t in enumerate(times)}
+    buckets = sorted({int(t) - (int(t) % int(bar_sec)) for t in times})
+    rows = []
+    for bucket in buckets:
+        chosen = []
+        for step in range(slots):
+            stamp = bucket + step * source_sec
+            pos = index.get(stamp)
+            if pos is None:
+                chosen = []
+                break
+            chosen.append(pos)
+        if len(chosen) != slots:
+            continue
+        chunk = src.iloc[chosen]
+        rows.append({
+            "mts": int(bucket) * 1000,
+            "time": int(bucket),
+            "open": float(chunk["open"].iloc[0]),
+            "high": float(chunk["high"].max()),
+            "low": float(chunk["low"].min()),
+            "close": float(chunk["close"].iloc[-1]),
+            "volume": float(chunk["volume"].sum()),
+        })
+    out = pd.DataFrame(rows, columns=["mts", "time", "open", "high", "low", "close", "volume"])
+    if out.empty:
+        return out
+    out["time"] = out["time"].astype(np.int64)
+    for col in ("open", "high", "low", "close", "volume"):
+        out[col] = out[col].astype(np.float64)
+    return out
+
+
+def _load_2h_frames(bars: int, cache: bool, refresh: bool) -> dict[str, pd.DataFrame]:
+    """2h bars from complete 1h pairs. Bitfinex does not publish ``trade:2h``."""
+    hours = load_timeframe_frames("1h", bars=max(int(bars), 10000), cache=cache, refresh=refresh)
+    _CACHE.mkdir(parents=True, exist_ok=True)
+    frames: dict[str, pd.DataFrame] = {}
+    for symbol, frame in hours.items():
+        path = _CACHE / f"{symbol}_2h_{bars}.parquet"
+        if cache and path.exists() and not refresh:
+            built = pd.read_parquet(path)
+        else:
+            built = aggregate_complete_bars(frame, 7200, 3600).tail(bars).reset_index(drop=True)
+            if built.empty:
+                raise RuntimeError(f"no complete 2h bars for {symbol}")
+            if cache:
+                built.to_parquet(path, index=False)
+        frames[symbol] = built.sort_values("time").drop_duplicates("time").reset_index(drop=True)
+    return frames
+
+
 def load_timeframe_frames(
     timeframe: str,
     bars: int = 10000,
     cache: bool = True,
     refresh: bool = False,
 ) -> dict[str, pd.DataFrame]:
-    """Each symbol's own closed prints at ``timeframe``. Gaps are absent, not filled."""
+    """Each symbol's own closed prints at ``timeframe``. Gaps are absent, not filled.
+
+    ``2h`` is not a Bitfinex candle. Those frames are pairs of complete ``1h``
+    candles; a missing hour removes the whole 2h bar.
+    """
+    if timeframe == "2h":
+        return _load_2h_frames(bars=bars, cache=cache, refresh=refresh)
     if timeframe not in TIMEFRAMES:
         raise ValueError(f"unsupported timeframe {timeframe!r}")
     _CACHE.mkdir(parents=True, exist_ok=True)

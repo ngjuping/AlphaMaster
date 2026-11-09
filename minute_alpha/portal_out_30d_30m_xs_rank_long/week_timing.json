@@ -1,0 +1,102 @@
+{
+  "retrain_count": 1440,
+  "retrain_seconds_median": 0.5226380715000118,
+  "retrain_seconds_p95": 0.590699527950008,
+  "retrain_seconds_mean": 0.5190705121208347,
+  "retrain_cpu_seconds_median": 0.5226380715000118,
+  "retrain_cpu_seconds_p95": 0.590699527950008,
+  "retrain_wall_seconds_median": 0.5251817415000914,
+  "retrain_wall_seconds_p95": 2.5191285100501775,
+  "wall_seconds": 1179.526432572,
+  "cpu_seconds": 748.905622765,
+  "serial_estimate_seconds": 747.4615374540019,
+  "gap_rows": 625,
+  "insufficient_history_rows": 0,
+  "cross_section_undefined_rows": 0,
+  "train_ic_median": 0.03924895138550749,
+  "periods_per_year": 17532,
+  "bar_seconds": 1800,
+  "window": 864,
+  "objective": "rank",
+  "position_mode": "rank",
+  "timeframe": "30m",
+  "variant": "rank_long",
+  "label": "B_long 截面 Rank IC，窗口 ×3",
+  "n_formulas": 32,
+  "seed": 20261109,
+  "anchor_1m_open": 1794198240,
+  "first_decision": 1791603000,
+  "last_decision": 1794193200,
+  "latest_open": 1794195000,
+  "oos_ic_mean": -0.0005494555776291907,
+  "oos_icir": -0.08959200158943402,
+  "oos_ic_note": "截面 Rank IC：逐 bar Spearman 的均值；ICIR 是按 UTC 日平均后再 mean/std(ddof=1)，不年化",
+  "ts_ic_mean": -0.0009827902715971043,
+  "ts_icir_daily": -0.13781101802073212,
+  "rank_ic_mean": -0.0005494555776291907,
+  "rank_icir_daily": -0.08959200158943402,
+  "rank_icir_bar": -0.0012483506549519898,
+  "rank_ic_bars": 1440,
+  "data": "bitfinex trade candles, not a 1-minute aggregation",
+  "sharpe": "mean/std(ddof=1)*sqrt(17532); 17532 = round(365.25*86400/1800)",
+  "horizon_days": 30,
+  "three_day_bars": 144,
+  "coverage": [
+    {
+      "symbol": "BTC",
+      "first": 1776216600,
+      "last": 1794195000,
+      "prints": 9989,
+      "missing_week_slots": 0,
+      "week_slots": 1441
+    },
+    {
+      "symbol": "ETH",
+      "first": 1776196800,
+      "last": 1794195000,
+      "prints": 9989,
+      "missing_week_slots": 0,
+      "week_slots": 1441
+    },
+    {
+      "symbol": "SOL",
+      "first": 1776133800,
+      "last": 1794195000,
+      "prints": 9989,
+      "missing_week_slots": 11,
+      "week_slots": 1441
+    },
+    {
+      "symbol": "XRP",
+      "first": 1775601000,
+      "last": 1794195000,
+      "prints": 9989,
+      "missing_week_slots": 32,
+      "week_slots": 1441
+    },
+    {
+      "symbol": "ADA",
+      "first": 1776193200,
+      "last": 1794195000,
+      "prints": 9989,
+      "missing_week_slots": 0,
+      "week_slots": 1441
+    },
+    {
+      "symbol": "DOGE",
+      "first": 1774985400,
+      "last": 1794195000,
+      "prints": 9989,
+      "missing_week_slots": 0,
+      "week_slots": 1441
+    },
+    {
+      "symbol": "LTC",
+      "first": 1772438400,
+      "last": 1794193200,
+      "prints": 9991,
+      "missing_week_slots": 359,
+      "week_slots": 1441
+    }
+  ]
+}

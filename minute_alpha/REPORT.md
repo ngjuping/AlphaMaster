@@ -263,3 +263,5 @@ MDD 是复利权益的峰值回撤。换手是 `|Δ仓位|` 的均值。买入�
 
 因子 × target、仓位 × target 的 target 是上面的简单收益，累加不含手续费。那是信号诊断，不是扣滑点后的策略收益。
 策略权益在 `equity.csv` / `equity.png`。
+
+一周结果在 `minute_alpha/portal_out_7d/`，不覆盖 24 小时目录。

@@ -1,0 +1,48 @@
+{
+  "retrain_count": 31127,
+  "retrain_seconds_median": 0.34791868399952364,
+  "retrain_seconds_p95": 0.358667321700068,
+  "retrain_seconds_mean": 0.34874343876242503,
+  "wall_seconds": 3105.505649095,
+  "serial_estimate_seconds": 10855.337018358005,
+  "n_jobs": 4,
+  "gap_rows": 39433,
+  "coverage": {
+    "BTC": {
+      "first": 1792893060,
+      "last": 1794198240,
+      "prints": 20000
+    },
+    "ETH": {
+      "first": 1792859700,
+      "last": 1794198240,
+      "prints": 20000
+    },
+    "SOL": {
+      "first": 1790735160,
+      "last": 1794198240,
+      "prints": 20000
+    },
+    "XRP": {
+      "first": 1790693640,
+      "last": 1794198240,
+      "prints": 20000
+    },
+    "ADA": {
+      "first": 1792771680,
+      "last": 1794198240,
+      "prints": 20000
+    },
+    "DOGE": {
+      "first": 1792240740,
+      "last": 1794198240,
+      "prints": 20000
+    },
+    "LTC": {
+      "first": 1783037460,
+      "last": 1794198120,
+      "prints": 20000
+    }
+  },
+  "speedup": 3.4955135314345487
+}

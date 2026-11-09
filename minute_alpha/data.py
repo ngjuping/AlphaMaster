@@ -109,13 +109,12 @@ def align_closed_panel(
     }
 
 
-def load_universe(
+def load_raw_frames(
     bars: int = BARS,
     cache: bool = True,
-    grid_end: str = "min",
     refresh: bool = False,
 ) -> dict[str, pd.DataFrame]:
-    """Load cached or public candles and align them on a closed-bar clock."""
+    """Return each symbol's own closed prints. Missing minutes are absent, not filled."""
     _CACHE.mkdir(parents=True, exist_ok=True)
     frames = {}
     for symbol, pair in PAIRS.items():
@@ -126,7 +125,18 @@ def load_universe(
             frame = fetch_pair(pair, bars)
             if cache:
                 frame.to_parquet(path, index=False)
-        frames[symbol] = frame
+        frames[symbol] = frame.sort_values("time").drop_duplicates("time").reset_index(drop=True)
+    return frames
+
+
+def load_universe(
+    bars: int = BARS,
+    cache: bool = True,
+    grid_end: str = "min",
+    refresh: bool = False,
+) -> dict[str, pd.DataFrame]:
+    """Load cached or public candles and align them on a closed-bar clock."""
+    frames = load_raw_frames(bars=bars, cache=cache, refresh=refresh)
     return align_closed_panel(frames, grid_end=grid_end)
 
 

@@ -1,0 +1,15 @@
+{
+  "one_core_seconds": 0.3471146280000994,
+  "multi_core_seconds": 0.6944359168062502,
+  "speedup": 3.502001154226253,
+  "fits_in_one_minute_1core": true,
+  "fits_in_one_minute_multicore": true,
+  "retrain_count": 10080,
+  "retrain_seconds_mean": 0.3474164831702363,
+  "retrain_seconds_p50": 0.3471146280000994,
+  "retrain_seconds_p95": 0.3596896597004161,
+  "retrain_seconds_max": 0.4393085310002789,
+  "wall_seconds": 999.9877202010002,
+  "parallel": "one process per symbol, each retrain single-threaded",
+  "serial_estimate_seconds": 3501.958150355982
+}

@@ -58,16 +58,29 @@ def fetch_pair(pair: str, bars: int, pause: float = 0.35) -> pd.DataFrame:
     return frame
 
 
-def align_closed_panel(frames: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
+def align_closed_panel(
+    frames: dict[str, pd.DataFrame],
+    grid_end: str = "min",
+) -> dict[str, pd.DataFrame]:
     """Put every symbol on one 60-second grid without looking ahead.
 
     Illiquid perpetuals do not print a candle every minute. Each grid minute
     uses the last candle whose open time is at or before that minute. Minutes
     without a new print keep the last close and set volume to 0, so the
-    open-to-open label is 0 until the next real print.
+    close-to-close simple return is 0 until the next real print.
+
+    ``grid_end="min"`` stops at the earliest symbol's last print.
+    ``grid_end="max"`` continues to the newest print in the universe; symbols
+    that have already stopped repeat their last close.
     """
     start = max(int(frame["time"].min()) for frame in frames.values())
-    end = min(int(frame["time"].max()) for frame in frames.values())
+    lasts = [int(frame["time"].max()) for frame in frames.values()]
+    if grid_end == "max":
+        end = max(lasts)
+    elif grid_end == "min":
+        end = min(lasts)
+    else:
+        raise ValueError(f"grid_end must be 'min' or 'max', got {grid_end!r}")
     if start % 60:
         start += 60 - (start % 60)
     if end <= start:
@@ -96,20 +109,25 @@ def align_closed_panel(frames: dict[str, pd.DataFrame]) -> dict[str, pd.DataFram
     }
 
 
-def load_universe(bars: int = BARS, cache: bool = True) -> dict[str, pd.DataFrame]:
+def load_universe(
+    bars: int = BARS,
+    cache: bool = True,
+    grid_end: str = "min",
+    refresh: bool = False,
+) -> dict[str, pd.DataFrame]:
     """Load cached or public candles and align them on a closed-bar clock."""
     _CACHE.mkdir(parents=True, exist_ok=True)
     frames = {}
     for symbol, pair in PAIRS.items():
         path = _CACHE / f"{symbol}_{bars}.parquet"
-        if cache and path.exists():
+        if cache and path.exists() and not refresh:
             frame = pd.read_parquet(path)
         else:
             frame = fetch_pair(pair, bars)
             if cache:
                 frame.to_parquet(path, index=False)
         frames[symbol] = frame
-    return align_closed_panel(frames)
+    return align_closed_panel(frames, grid_end=grid_end)
 
 
 def to_matrices(aligned: dict[str, pd.DataFrame]) -> dict[str, np.ndarray]:

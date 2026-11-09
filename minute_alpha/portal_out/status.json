@@ -2,10 +2,10 @@
   "page": "alphamaster_online_learning",
   "schema_version": "1.0.0",
   "package_version": "1.0.0",
-  "git_commit": "30ae90828802be1da04524635168060a05316a3f",
+  "git_commit": "a8853f6b1c4733df38b6ac0ab68ac9c181a8b4de",
   "git_branch": "cursor/minute-alpha-rewrite-4beb",
-  "generated_at_unix": 1794195480,
-  "generated_at_utc": "2026-11-09T03:38:00Z",
+  "generated_at_unix": 1794197773,
+  "generated_at_utc": "2026-11-09T04:16:13Z",
   "cpu_count": 4,
   "n_jobs": 4,
   "symbols": [
@@ -17,42 +17,46 @@
     "DOGE",
     "LTC"
   ],
-  "bars": 9430,
-  "retrain_every_minutes": 60,
-  "data_cutoff_unix": 1794193320,
-  "data_cutoff_utc": "2026-11-09T03:02:00Z",
-  "oos_start_unix": 1793967060,
-  "oos_start_utc": "2026-11-06T12:11:00Z",
+  "bars": 5762,
+  "retrain_every_minutes": 1,
+  "data_cutoff_unix": 1794196680,
+  "data_cutoff_utc": "2026-11-09T03:58:00Z",
+  "oos_start_unix": 1794110340,
+  "oos_start_utc": "2026-11-08T03:59:00Z",
   "last_retrain": {
-    "started_at_unix": 1794195468,
-    "started_at_utc": "2026-11-09T03:37:48Z",
-    "finished_at_unix": 1794195470,
-    "finished_at_utc": "2026-11-09T03:37:50Z",
-    "duration_seconds": 2.8891072273254395,
+    "started_at_unix": 1794197770,
+    "started_at_utc": "2026-11-09T04:16:10Z",
+    "finished_at_unix": 1794197773,
+    "finished_at_utc": "2026-11-09T04:16:13Z",
+    "duration_seconds": 2.4892386550000083,
     "cpu_count": 4,
     "n_jobs": 4,
     "n_formulas": 32,
     "train_window_bars": 4320,
-    "data_cutoff_unix": 1794193320,
-    "data_cutoff_utc": "2026-11-09T03:02:00Z"
+    "data_cutoff_unix": 1794196680,
+    "data_cutoff_utc": "2026-11-09T03:58:00Z"
   },
   "timing": {
-    "one_core_seconds": 0.5084543750001558,
-    "one_core_feature_seconds": 0.2920914020000964,
-    "one_core_search_seconds": 0.21636297300005936,
-    "multi_core_seconds": 0.2651040959999591,
-    "multi_core_feature_seconds": 0.1837467390000711,
-    "multi_core_search_seconds": 0.081357356999888,
-    "speedup": 1.9179423580095656,
+    "one_core_seconds": 0.3471146280000994,
+    "multi_core_seconds": 0.6944359168062502,
+    "speedup": 3.502001154226253,
     "fits_in_one_minute_1core": true,
-    "fits_in_one_minute_multicore": true
+    "fits_in_one_minute_multicore": true,
+    "retrain_count": 10080,
+    "retrain_seconds_mean": 0.3474164831702363,
+    "retrain_seconds_p50": 0.3471146280000994,
+    "retrain_seconds_p95": 0.3596896597004161,
+    "retrain_seconds_max": 0.4393085310002789,
+    "wall_seconds": 999.9877202010002,
+    "parallel": "one process per symbol, each retrain single-threaded",
+    "serial_estimate_seconds": 3501.958150355982
   },
   "positions": [
     {
       "symbol": "BTC",
       "pair": "tBTCF0:USTF0",
-      "asof_unix": 1794193320,
-      "asof_utc": "2026-11-09T03:02:00Z",
+      "asof_unix": 1794196680,
+      "asof_utc": "2026-11-09T03:58:00Z",
       "factor_name": "sample_12",
       "formula": "SLOPE20 → CS_NEUTRALIZE → GK_VOL → CMF_20 → TS_QUANTILE_10 → WILLR_14 → IF_GT → ADD",
       "formula_tokens": [
@@ -65,17 +69,17 @@
         126,
         65
       ],
-      "factor_value": -0.3852687478065491,
-      "target_position": -0.3672743067206746,
-      "train_score": -13.012696488835768,
-      "val_score": 2.3110495883780438,
-      "retrain_seconds": 0.4058752750001986
+      "factor_value": -0.46538808941841125,
+      "target_position": -0.43446545763265654,
+      "train_score": -12.185994975066382,
+      "val_score": 2.6554304729150404,
+      "retrain_seconds": 0.41749047600023914
     },
     {
       "symbol": "ETH",
       "pair": "tETHF0:USTF0",
-      "asof_unix": 1794193320,
-      "asof_utc": "2026-11-09T03:02:00Z",
+      "asof_unix": 1794196680,
+      "asof_utc": "2026-11-09T03:58:00Z",
       "factor_name": "sample_12",
       "formula": "SLOPE20 → CS_NEUTRALIZE → GK_VOL → CMF_20 → TS_QUANTILE_10 → WILLR_14 → IF_GT → ADD",
       "formula_tokens": [
@@ -88,17 +92,17 @@
         126,
         65
       ],
-      "factor_value": -0.42724689841270447,
-      "target_position": -0.4030179369048538,
-      "train_score": -12.938757353311546,
-      "val_score": 6.5537326163075225,
-      "retrain_seconds": 0.4189013029999842
+      "factor_value": -0.3228178918361664,
+      "target_position": -0.31205264740160715,
+      "train_score": -13.105718616639148,
+      "val_score": 6.511063117755072,
+      "retrain_seconds": 0.3506585939994693
     },
     {
       "symbol": "SOL",
       "pair": "tSOLF0:USTF0",
-      "asof_unix": 1794193320,
-      "asof_utc": "2026-11-09T03:02:00Z",
+      "asof_unix": 1794196680,
+      "asof_utc": "2026-11-09T03:58:00Z",
       "factor_name": "sample_12",
       "formula": "SLOPE20 → CS_NEUTRALIZE → GK_VOL → CMF_20 → TS_QUANTILE_10 → WILLR_14 → IF_GT → ADD",
       "formula_tokens": [
@@ -111,86 +115,17 @@
         126,
         65
       ],
-      "factor_value": -0.12351183593273163,
-      "target_position": -0.12288758007522244,
-      "train_score": -8.010038223481354,
-      "val_score": 5.54388167466833,
-      "retrain_seconds": 0.4147991150002781
+      "factor_value": -0.5818199515342712,
+      "target_position": -0.5239869498812949,
+      "train_score": -7.767838466308479,
+      "val_score": 4.972885636576257,
+      "retrain_seconds": 0.34547432100043807
     },
     {
       "symbol": "XRP",
       "pair": "tXRPF0:USTF0",
-      "asof_unix": 1794193320,
-      "asof_utc": "2026-11-09T03:02:00Z",
-      "factor_name": "forex_v2",
-      "formula": "DMI_DIFF_14 → HL_RANGE → TS_MIN_20 → SUB → TS_MIN_20 → TS_MEAN_20 → CS_SCALE → WMA",
-      "formula_tokens": [
-        49,
-        7,
-        97,
-        66,
-        97,
-        79,
-        110,
-        91
-      ],
-      "factor_value": 0.03145222365856171,
-      "target_position": 0.0,
-      "train_score": 1.2828347666405069,
-      "val_score": 2.9234976321879795,
-      "retrain_seconds": 0.4097197559999586
-    },
-    {
-      "symbol": "ADA",
-      "pair": "tADAF0:USTF0",
-      "asof_unix": 1794193320,
-      "asof_utc": "2026-11-09T03:02:00Z",
-      "factor_name": "sample_12",
-      "formula": "SLOPE20 → CS_NEUTRALIZE → GK_VOL → CMF_20 → TS_QUANTILE_10 → WILLR_14 → IF_GT → ADD",
-      "formula_tokens": [
-        4,
-        111,
-        37,
-        43,
-        95,
-        26,
-        126,
-        65
-      ],
-      "factor_value": -0.1740226000547409,
-      "target_position": -0.17228692982012955,
-      "train_score": -11.254637229211566,
-      "val_score": 5.346003434867973,
-      "retrain_seconds": 0.4109982929999205
-    },
-    {
-      "symbol": "DOGE",
-      "pair": "tDOGEF0:USTF0",
-      "asof_unix": 1794193320,
-      "asof_utc": "2026-11-09T03:02:00Z",
-      "factor_name": "sample_17",
-      "formula": "RET_ENTROPY_20 → TS_MAX_10 → MFI14 → TS_RANK_10 → EMA_RATIO_12_26 → MAX → TS_SUM_5 → MIN",
-      "formula_tokens": [
-        62,
-        89,
-        25,
-        84,
-        30,
-        116,
-        112,
-        115
-      ],
-      "factor_value": -3.0,
-      "target_position": -0.9950547536867305,
-      "train_score": -9.64740292550037,
-      "val_score": 3.416625440506139,
-      "retrain_seconds": 0.4159734530003334
-    },
-    {
-      "symbol": "LTC",
-      "pair": "tLTCF0:USTF0",
-      "asof_unix": 1794193320,
-      "asof_utc": "2026-11-09T03:02:00Z",
+      "asof_unix": 1794196680,
+      "asof_utc": "2026-11-09T03:58:00Z",
       "factor_name": "sample_25",
       "formula": "PRICE_POS_50 → TS_MIN_20 → DELTA_5 → POWER → TS_MEAN_5 → DECAY_LINEAR_5 → DEV60 → ADD",
       "formula_tokens": [
@@ -203,11 +138,80 @@
         10,
         65
       ],
-      "factor_value": 0.3256857991218567,
-      "target_position": 0.3146389652111312,
-      "train_score": 0.06759520677325648,
-      "val_score": 4.6858126437979735,
-      "retrain_seconds": 0.41189563499983706
+      "factor_value": 0.7361084818840027,
+      "target_position": 0.6267882395165573,
+      "train_score": -2.630113172231037,
+      "val_score": 2.141041767292096,
+      "retrain_seconds": 0.34413573799884034
+    },
+    {
+      "symbol": "ADA",
+      "pair": "tADAF0:USTF0",
+      "asof_unix": 1794196680,
+      "asof_utc": "2026-11-09T03:58:00Z",
+      "factor_name": "sample_12",
+      "formula": "SLOPE20 → CS_NEUTRALIZE → GK_VOL → CMF_20 → TS_QUANTILE_10 → WILLR_14 → IF_GT → ADD",
+      "formula_tokens": [
+        4,
+        111,
+        37,
+        43,
+        95,
+        26,
+        126,
+        65
+      ],
+      "factor_value": -0.6108958125114441,
+      "target_position": -0.5447573769142915,
+      "train_score": -10.949904274543936,
+      "val_score": 6.3446803882990555,
+      "retrain_seconds": 0.3463298480000958
+    },
+    {
+      "symbol": "DOGE",
+      "pair": "tDOGEF0:USTF0",
+      "asof_unix": 1794196680,
+      "asof_utc": "2026-11-09T03:58:00Z",
+      "factor_name": "sample_17",
+      "formula": "RET_ENTROPY_20 → TS_MAX_10 → MFI14 → TS_RANK_10 → EMA_RATIO_12_26 → MAX → TS_SUM_5 → MIN",
+      "formula_tokens": [
+        62,
+        89,
+        25,
+        84,
+        30,
+        116,
+        112,
+        115
+      ],
+      "factor_value": 0.846127986907959,
+      "target_position": 0.6890412240795682,
+      "train_score": -10.293146504894317,
+      "val_score": 4.767449151735532,
+      "retrain_seconds": 0.3464107240006342
+    },
+    {
+      "symbol": "LTC",
+      "pair": "tLTCF0:USTF0",
+      "asof_unix": 1794196680,
+      "asof_utc": "2026-11-09T03:58:00Z",
+      "factor_name": "sample_4",
+      "formula": "RET_ACCEL → DELTA → PARKINSON_VOL → TS_ARG_MAX_5 → POWER → CS_NEUTRALIZE → TS_SKEW_10 → COVARIANCE_10",
+      "formula_tokens": [
+        36,
+        99,
+        38,
+        100,
+        117,
+        111,
+        96,
+        104
+      ],
+      "factor_value": 0.20121608674526215,
+      "target_position": 0.19854375082897932,
+      "train_score": -7.822226741651466,
+      "val_score": 4.774934189296998,
+      "retrain_seconds": 0.3387389540002914
     }
   ],
   "files": {
@@ -217,5 +221,21 @@
     "retrain_timing_history": "retrain_timing_history.csv",
     "equity": "equity.csv",
     "next_minute_positions": "next_minute_positions.csv"
+  },
+  "backtest": {
+    "window": "last_24h",
+    "minutes": 1440,
+    "settlement": "simple_return close[t+1]/close[t]-1",
+    "train_label": "log(open[t+2]/open[t+1]) inside the miner only",
+    "train_window_bars": 4320,
+    "seed": 20261109,
+    "costs": [
+      "0 fee + 1bp slippage",
+      "0 cost"
+    ],
+    "baselines": [
+      "buy_and_hold",
+      "flat"
+    ]
   }
 }

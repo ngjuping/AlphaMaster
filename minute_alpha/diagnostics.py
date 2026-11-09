@@ -195,13 +195,19 @@ def _vline(ax, times: np.ndarray, oos_start: int) -> None:
         ax.axvline(times[oos_start], color="black", ls="--", lw=1, label="OOS start")
 
 
-def plot_factor_cumsum(frame: pd.DataFrame, times: np.ndarray, oos_start: int, path: Path) -> None:
+def plot_factor_cumsum(
+    frame: pd.DataFrame,
+    times: np.ndarray,
+    oos_start: int,
+    path: Path,
+    title: str = "Diagnostic: standardized factor × target (cumsum)",
+) -> None:
     fig, ax = plt.subplots(figsize=(11, 5.5))
     for symbol, sub in frame.groupby("symbol"):
         sub = sub.sort_values("time")
         ax.plot(sub["time"], sub["cumsum"], lw=1.2 if symbol == "ALL" else 0.9, label=symbol)
     _vline(ax, times, oos_start)
-    ax.set_title("Diagnostic: standardized factor × training label (cumsum)")
+    ax.set_title(title)
     ax.set_xlabel("unix seconds")
     ax.set_ylabel("cumsum of factor × target")
     ax.legend(ncol=4, fontsize=8)
@@ -211,13 +217,19 @@ def plot_factor_cumsum(frame: pd.DataFrame, times: np.ndarray, oos_start: int, p
     plt.close(fig)
 
 
-def plot_position_cumsum(frame: pd.DataFrame, times: np.ndarray, oos_start: int, path: Path) -> None:
+def plot_position_cumsum(
+    frame: pd.DataFrame,
+    times: np.ndarray,
+    oos_start: int,
+    path: Path,
+    title: str = "Diagnostic: target position × target (cumsum, no costs)",
+) -> None:
     fig, ax = plt.subplots(figsize=(11, 5.5))
     for symbol, sub in frame.groupby("symbol"):
         sub = sub.sort_values("time")
         ax.plot(sub["time"], sub["cumsum"], lw=1.2 if symbol == "ALL" else 0.9, label=symbol)
     _vline(ax, times, oos_start)
-    ax.set_title("Diagnostic: target position × training label (cumsum, no costs)")
+    ax.set_title(title)
     ax.set_xlabel("unix seconds")
     ax.set_ylabel("cumsum of position × target")
     ax.legend(ncol=4, fontsize=8)

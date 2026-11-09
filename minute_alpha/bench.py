@@ -120,10 +120,12 @@ def _role_engine(threads: int) -> dict:
 
     import torch
 
-    torch.set_num_threads(threads)
     from model_core.config import ModelConfig
     from model_core.engine import AlphaEngine
     from model_core.features import MT5FeatureEngineer
+
+    # engine.py sets intra-op threads to all cores at import. Override after that.
+    torch.set_num_threads(threads)
 
     raw_np = _synthetic(480)
     raw = {k: torch.tensor(raw_np[k], dtype=torch.float32) for k in ("open", "high", "low", "close", "volume")}

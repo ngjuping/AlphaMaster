@@ -1,0 +1,78 @@
+{
+  "rewrite_1": {
+    "impl": "rewrite",
+    "jobs": 1,
+    "feature_s": 0.08091185700004644,
+    "search_s": 0.08072688399988692,
+    "total_s": 0.16163874099993336,
+    "champion": [
+      49,
+      7,
+      97,
+      66,
+      97,
+      79,
+      110,
+      91
+    ],
+    "val_score": 3.6406936208678387
+  },
+  "rewrite_multi": {
+    "impl": "rewrite",
+    "jobs": 4,
+    "feature_s": 0.08005484699970111,
+    "search_s": 0.04021255299994664,
+    "total_s": 0.12026739999964775,
+    "champion": [
+      49,
+      7,
+      97,
+      66,
+      97,
+      79,
+      110,
+      91
+    ],
+    "val_score": 3.6406936208678387
+  },
+  "original_1": {
+    "impl": "original_stackvm",
+    "threads": 1,
+    "torch_threads": 1,
+    "feature_s": 0.2666498749999846,
+    "eval_s": 0.25215010800002347,
+    "total_s": 0.5187999830000081,
+    "scored": 32
+  },
+  "original_multi": {
+    "impl": "original_stackvm",
+    "threads": 4,
+    "torch_threads": 4,
+    "feature_s": 0.10623187000010148,
+    "eval_s": 0.16208465899990188,
+    "total_s": 0.26831652900000336,
+    "scored": 32
+  },
+  "engine_1": {
+    "impl": "original_engine_one_step",
+    "threads": 1,
+    "batch": 8,
+    "seconds": 0.3030492560001221,
+    "best_score": 24.43707847595215
+  },
+  "cpu_count": 4,
+  "formulas": 32,
+  "bars": 1500,
+  "speedup_rewrite": 1.343994640279966,
+  "speedup_original_threads": 1.9335371731795232,
+  "rewrite_vs_original_1core": 3.20962647809922,
+  "engine_4": {
+    "impl": "original_engine_one_step",
+    "threads": 4,
+    "batch": 8,
+    "seconds": 0.23557548300004783,
+    "best_score": 10.840490341186523
+  },
+  "engine_full_budget_extrapolation_seconds": 65458.63929602638,
+  "engine_full_budget_note": "Linear extrapolation of one AlphaEngine step (batch 8, T=480, threads=1) to TRAIN_STEPS=9000 and BATCH_SIZE=192. Ignores longer H1 histories."
+}

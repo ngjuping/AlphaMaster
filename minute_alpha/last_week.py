@@ -41,9 +41,14 @@ def latest_closed_open(now: int | None = None) -> int:
     return (now // 60) * 60 - 60
 
 
-def week_clock(latest_open: int, history: int = HISTORY) -> np.ndarray:
-    start = latest_open - (history - 1) * 60
-    return np.arange(start, latest_open + 60, 60, dtype=np.int64)
+def bars_per_year(bar_seconds: int) -> int:
+    """Calendar bars per year for a regular grid. 1m=525960, 5m=105192, 15m=35064."""
+    return int(round(365.25 * 86400 / bar_seconds))
+
+
+def week_clock(latest_open: int, history: int = HISTORY, bar_seconds: int = 60) -> np.ndarray:
+    start = latest_open - (history - 1) * bar_seconds
+    return np.arange(start, latest_open + bar_seconds, bar_seconds, dtype=np.int64)
 
 
 def _gap_row(symbol: str, decision: int, reason: str) -> dict:
@@ -76,9 +81,9 @@ def _symbol_week(symbol_i: int) -> list[dict]:
     rows = []
     for step, decision in enumerate(state["decisions"]):
         if step % 500 == 0:
-            print(f"{symbol} minute {step}/{len(state['decisions'])}", flush=True)
+            print(f"{symbol} bar {step}/{len(state['decisions'])}", flush=True)
         decision = int(decision)
-        settle = decision + 60
+        settle = decision + int(state["bar_seconds"])
         i_now = index.get(decision)
         i_next = index.get(settle)
         if i_now is None or i_next is None:
@@ -125,16 +130,20 @@ def run_from_packs(
     window: int = TRAIN_WINDOW,
     n_formulas: int = N_FORMULAS,
     n_jobs: int = 1,
+    bar_seconds: int = 60,
+    periods: int | None = None,
+    carry_position: bool = False,
 ) -> dict:
     from minute_alpha.search import make_candidates
 
-    clock = week_clock(latest_open, history=minutes + window)
+    clock = week_clock(latest_open, history=minutes + window, bar_seconds=bar_seconds)
     if len(clock) != minutes + window:
         raise RuntimeError(f"clock length {len(clock)} != {minutes + window}")
     decisions = clock[window - 1 : -1]
     if len(decisions) != minutes:
         raise RuntimeError(f"expected {minutes} decisions, got {len(decisions)}")
-    regular = np.arange(window, dtype=np.int64) * 60
+    if periods is None:
+        periods = annualization(np.arange(window, dtype=np.int64) * bar_seconds)
     global _STATE
     symbols = list(packs)
     _STATE = {
@@ -142,8 +151,9 @@ def run_from_packs(
         "symbols": symbols,
         "decisions": decisions,
         "window": window,
+        "bar_seconds": int(bar_seconds),
         "candidates": make_candidates(n_formulas, SEED),
-        "periods": annualization(regular),
+        "periods": int(periods),
     }
     wall0 = time.perf_counter()
     if n_jobs <= 1 or len(symbols) == 1:
@@ -166,6 +176,8 @@ def run_from_packs(
         "n_jobs": n_jobs,
         "n_formulas": n_formulas,
         "latest_open": int(latest_open),
+        "bar_seconds": int(bar_seconds),
+        "carry_position": bool(carry_position),
     }
 
 
@@ -205,6 +217,15 @@ def _tables(result: dict) -> dict[str, pd.DataFrame]:
                     "inference_seconds": row["inference_seconds"],
                     "champion": row["name"],
                 })
+    if result.get("carry_position"):
+        # A missing bar keeps the last target. It is not flattened to 0.
+        for i in range(n):
+            last = np.nan
+            for k in range(m):
+                if np.isfinite(position[i, k]):
+                    last = position[i, k]
+                elif np.isfinite(last):
+                    position[i, k] = last
     pnl_1 = np.full((n, m), np.nan)
     pnl_0 = np.full((n, m), np.nan)
     turn = np.full((n, m), np.nan)
@@ -373,7 +394,7 @@ def _tables(result: dict) -> dict[str, pd.DataFrame]:
 
 def _metric_line(symbol, pnl_1, to_1, pnl_0, bh_1, bh_0, periods, gap_count, valid_count) -> dict:
     m1 = _metrics(pnl_1, to_1, periods)
-    m0 = _metrics(pnl_0, np.zeros_like(pnl_0) if len(pnl_0) else pnl_0, periods)
+    m0 = _metrics(pnl_0, to_1, periods)
     b1 = _metrics(bh_1, np.zeros(len(bh_1)), periods)
     b0 = _metrics(bh_0, np.zeros(len(bh_0)), periods)
     flat = _metrics(np.zeros(valid_count), np.zeros(valid_count), periods)
@@ -464,7 +485,7 @@ def _plot(tables: dict, folder: Path) -> None:
     )
 
 
-def _write(result: dict, tables: dict) -> None:
+def _write(result: dict, tables: dict, folders: tuple[Path, ...] | None = None) -> None:
     tables["timing"]["wall_seconds"] = float(result["wall_seconds"])
     if tables["timing"]["serial_estimate_seconds"] and result["wall_seconds"] > 0:
         tables["timing"]["speedup"] = tables["timing"]["serial_estimate_seconds"] / result["wall_seconds"]
@@ -473,7 +494,7 @@ def _write(result: dict, tables: dict) -> None:
         tables["timing"]["retrain_seconds_median"] = float(np.median(totals))
         tables["timing"]["retrain_seconds_p95"] = float(np.percentile(totals, 95))
     report = _report(tables)
-    for folder in (OUT_DIR, ARTIFACTS):
+    for folder in (folders or (OUT_DIR, ARTIFACTS)):
         folder.mkdir(parents=True, exist_ok=True)
         tables["factor_target_cumsum"].to_csv(folder / "factor_target_cumsum.csv", index=False)
         tables["position_target_cumsum"].to_csv(folder / "position_target_cumsum.csv", index=False)

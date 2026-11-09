@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 
-from minute_alpha.last_week import run_from_packs
+from minute_alpha.last_week import _tables, run_from_packs
 
 
 def _pack(times, seed: int) -> dict[str, np.ndarray]:
@@ -45,3 +46,16 @@ def test_gap_is_not_zero_and_repeat_matches():
             if not a["gap"]:
                 assert a["position"] == b["position"]
                 assert a["name"] == b["name"]
+    carried = dict(first)
+    carried["carry_position"] = True
+    tables = _tables(carried)
+    pos = tables["position_target_cumsum"]
+    bbb = pos[pos.symbol == "BBB"].reset_index(drop=True)
+    gap_at = bbb.index[bbb["target"].isna()]
+    assert len(gap_at)
+    for idx in gap_at:
+        assert pd.isna(bbb.loc[idx, "target"])
+        assert pd.isna(bbb.loc[idx, "product"])
+        if idx > 0 and pd.notna(bbb.loc[idx - 1, "position"]):
+            assert bbb.loc[idx, "position"] == bbb.loc[idx - 1, "position"]
+            assert bbb.loc[idx, "position"] != 0 or bbb.loc[idx - 1, "position"] != 0
